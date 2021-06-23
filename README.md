@@ -5,7 +5,7 @@ Simple multi-thread Pub Sub with Rust. Using polling from smol.
 It doesn't work yet, _working on it_.
 
 I'm prototyping how to handle subscriptions to improve
-[Bite](github.com/alvivar/bite).
+[Bite](https://github.com/alvivar/bite).
 
 # The idea
 
