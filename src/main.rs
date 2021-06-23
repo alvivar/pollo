@@ -95,6 +95,7 @@ fn read(conn: &mut Connection) -> io::Result<Vec<u8>> {
             }
             // Would block "errors" are the OS's way of saying that the
             // connection is not actually ready to perform this I/O operation.
+            // @todo Do I need this?
             Err(ref err) if would_block(err) => break,
             Err(ref err) if interrupted(err) => continue,
             // Other errors we'll consider fatal.
@@ -102,8 +103,8 @@ fn read(conn: &mut Connection) -> io::Result<Vec<u8>> {
         }
     }
 
-    // @doubt Using this slice thing and returning with into() versus resize?
-    // let received_data = &received_data[..bytes_read]; // Cool alternative
+    // let received_data = &received_data[..bytes_read]; // @doubt Using this
+    // slice thing and returning with into() versus using the resize? Hm.
 
     received_data.resize(bytes_read, 0);
 
