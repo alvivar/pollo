@@ -8,6 +8,8 @@ use std::usize;
 use polling::{Event, Poller};
 
 mod conn;
+mod subs;
+
 use conn::Connection;
 
 fn would_block(err: &io::Error) -> bool {
@@ -76,11 +78,11 @@ fn main() -> io::Result<()> {
 }
 
 fn read(conn: &mut Connection) -> io::Result<Vec<u8>> {
-    let mut received_data = vec![0; 1024 * 4];
+    let mut received = vec![0; 1024 * 4];
     let mut bytes_read = 0;
 
     loop {
-        match conn.socket.read(&mut received_data[bytes_read..]) {
+        match conn.socket.read(&mut received[bytes_read..]) {
             Ok(0) => {
                 // Reading 0 bytes means the other side has closed the
                 // connection or is done writing, then so are we.
@@ -88,8 +90,8 @@ fn read(conn: &mut Connection) -> io::Result<Vec<u8>> {
             }
             Ok(n) => {
                 bytes_read += n;
-                if bytes_read == received_data.len() {
-                    received_data.resize(received_data.len() + 1024, 0);
+                if bytes_read == received.len() {
+                    received.resize(received.len() + 1024, 0);
                 }
             }
             // Would block "errors" are the OS's way of saying that the
@@ -105,7 +107,7 @@ fn read(conn: &mut Connection) -> io::Result<Vec<u8>> {
     // let received_data = &received_data[..bytes_read]; // @doubt Using this
     // slice thing and returning with into() versus using the resize? Hm.
 
-    received_data.resize(bytes_read, 0);
+    received.resize(bytes_read, 0);
 
-    Ok(received_data)
+    Ok(received)
 }
