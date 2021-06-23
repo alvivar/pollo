@@ -1,6 +1,6 @@
 # pollo
 
-This is a simple multi-thread Pub Sub using just polling from smol.
+Simple multi-thread Pub Sub with Rust. Using polling from smol.
 
 _Work in progress!_
 
