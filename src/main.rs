@@ -25,7 +25,7 @@ fn main() -> io::Result<()> {
     let poller = Poller::new()?;
     poller.add(&server, Event::readable(0))?;
 
-    let mut id: usize = 1;
+    let mut id: usize = 0;
     let mut conns = HashMap::<usize, Connection>::new();
 
     let mut events = Vec::new();
@@ -36,9 +36,7 @@ fn main() -> io::Result<()> {
         for ev in &events {
             match ev.key {
                 0 => {
-                    println!("Accept on l1");
-
-                    // Handle registry.
+                    // Detection
                     let (socket, addr) = server.accept()?;
                     socket.set_nonblocking(true)?;
 
@@ -47,7 +45,9 @@ fn main() -> io::Result<()> {
                     poller.add(&socket, Event::readable(id))?;
                     conns.insert(id, Connection::new(id, socket, addr));
 
-                    // Listen for more clients.
+                    println!("New connection #{} from {}", id, addr);
+
+                    // Listen for more clients, always using 0.
                     poller.modify(&server, Event::readable(0))?;
                 }
 
@@ -56,7 +56,7 @@ fn main() -> io::Result<()> {
                         let data = match read(&mut conn) {
                             Ok(data) => data,
                             Err(err) => {
-                                println!("Connection {} lost: {}", conn.id, err);
+                                println!("Connection #{} lost: {}", conn.id, err);
                                 continue;
                             }
                         };
