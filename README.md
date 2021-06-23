@@ -2,7 +2,7 @@
 
 Simple multi-thread Pub Sub with Rust. Using polling from smol.
 
-_Work in progress!_
+It doesn't work yet, still _working on it_.
 
 # The idea
 
