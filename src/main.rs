@@ -5,7 +5,6 @@ use std::net::TcpListener;
 use std::str::from_utf8;
 use std::usize;
 
-// use anyhow::{Error, Result};
 use polling::{Event, Poller};
 
 mod conn;
