@@ -8,4 +8,7 @@ edition = "2018"
 
 [dependencies]
 polling = "2.1.0"
-anyhow = "1.0.41"
+
+# Maybe learning those?
+# env_logger = "0.8.4"
+# anyhow = "1.0.41"
