@@ -1,8 +1,6 @@
-use std::{
-    collections::HashMap,
-    sync::mpsc::{channel, Receiver, Sender},
-    usize,
-};
+use std::collections::HashMap;
+use std::sync::mpsc::{channel, Receiver, Sender};
+use std::usize;
 
 enum Command {
     Add(usize),
