@@ -3,8 +3,8 @@ use std::sync::mpsc::{channel, Receiver, Sender};
 use std::usize;
 
 enum Command {
-    Add(usize),
-    Delete(usize),
+    Add(String, usize),
+    Call(String),
 }
 
 pub struct Subs {
@@ -21,15 +21,19 @@ impl Subs {
         Subs { registry, tx, rx }
     }
 
-    pub fn handle(&self) {
+    pub fn handle(&mut self) {
         loop {
-            let cmd = self.rx.recv();
-            match cmd {
-                Ok(Command::Add(id)) => todo!(),
+            match self.rx.recv() {
+                Ok(Command::Add(key, id)) => {
+                    let conns = self.registry.entry(key).or_insert_with(Vec::new);
+                    conns.push(id);
+                }
 
-                Ok(Command::Delete(id)) => todo!(),
+                Ok(Command::Call(key)) => {
+                    self.registry.entry(key).or_insert_with(Vec::new);
+                }
 
-                Err(_) => todo!(),
+                Err(_) => {}
             }
         }
     }
