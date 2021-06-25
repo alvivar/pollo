@@ -1,10 +1,10 @@
-pub struct Op {
+pub struct Msg {
     pub op: String,
     pub key: String,
     pub value: String,
 }
 
-pub fn parse(text: &str) -> Op {
+pub fn parse(text: &str) -> Msg {
     let mut op = String::new();
     let mut key = String::new();
     let mut value = String::new();
@@ -39,5 +39,5 @@ pub fn parse(text: &str) -> Op {
     let op = op.trim().to_owned();
     let key = key.trim().to_owned();
 
-    Op { op, key, value }
+    Msg { op, key, value }
 }

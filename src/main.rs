@@ -52,7 +52,7 @@ fn main() -> io::Result<()> {
                     let (socket, addr) = server.accept()?;
                     socket.set_nonblocking(true)?;
 
-                    println!("New connection #{} from {}", id, addr);
+                    println!("Connection #{} from {}", id, addr);
 
                     // Let's save the connection to read from it later.
                     poller.add(&socket, Event::readable(id))?;
@@ -78,26 +78,31 @@ fn main() -> io::Result<()> {
                             println!("{}: {}", conn.addr, utf8.trim_end());
 
                             let msg = parse(utf8);
-                            match msg.op.as_str() {
+                            let op = msg.op.as_str();
+                            let key = msg.key;
+                            let val = msg.value;
+
+                            match op {
                                 // A subscription and a first message.
                                 "+" => {
-                                    // @todo Probably check if already subscribed before cloning the socket.
-
                                     let socket = conn.socket.try_clone().unwrap();
-                                    subs_tx.send(subs::Command::Add(msg.key, socket)).unwrap();
+                                    subs_tx
+                                        .send(subs::Cmd::Add(key.to_owned(), conn.id, socket))
+                                        .unwrap();
+
+                                    subs_tx.send(subs::Cmd::Call(key, val)).unwrap()
                                 }
 
                                 // A message to subscriptions.
-                                ":" => subs_tx
-                                    .send(subs::Command::Call(msg.key, msg.value))
-                                    .unwrap(),
+                                ":" => subs_tx.send(subs::Cmd::Call(key, val)).unwrap(),
 
                                 // A desubscription and a last message.
-                                "-" => subs_tx.send(subs::Command::Del(msg.key, conn.id)).unwrap(),
-
-                                _ => {
-                                    println!("^ (?)");
+                                "-" => {
+                                    subs_tx.send(subs::Cmd::Call(key.to_owned(), val)).unwrap();
+                                    subs_tx.send(subs::Cmd::Del(key, conn.id)).unwrap();
                                 }
+
+                                _ => (),
                             }
                         }
 
