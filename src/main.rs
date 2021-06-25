@@ -21,13 +21,13 @@ fn interrupted(err: &io::Error) -> bool {
 }
 
 fn main() -> io::Result<()> {
-    let server = TcpListener::bind("0.0.0.0:1984")?;
-    server.set_nonblocking(true)?;
+    let rx_server = TcpListener::bind("0.0.0.0:1984")?;
+    rx_server.set_nonblocking(true)?;
 
     let poller = Poller::new()?;
-    poller.add(&server, Event::readable(0))?;
+    poller.add(&rx_server, Event::readable(0))?;
 
-    let mut id: usize = 0;
+    let mut id: usize = 1;
     let mut conns = HashMap::<usize, Connection>::new();
 
     let mut events = Vec::new();
@@ -38,19 +38,19 @@ fn main() -> io::Result<()> {
         for ev in &events {
             match ev.key {
                 0 => {
-                    // Detection
-                    let (socket, addr) = server.accept()?;
+                    let (socket, addr) = rx_server.accept()?;
                     socket.set_nonblocking(true)?;
-
-                    // Let's save the connection to read from it later.
-                    id += 1;
-                    poller.add(&socket, Event::readable(id))?;
-                    conns.insert(id, Connection::new(id, socket, addr));
 
                     println!("New connection #{} from {}", id, addr);
 
+                    // Let's save the connection to read from it later.
+                    poller.add(&socket, Event::readable(id))?;
+                    conns.insert(id, Connection::new(id, socket, addr));
+
+                    id += 1;
+
                     // Listen for more clients, always using 0.
-                    poller.modify(&server, Event::readable(0))?;
+                    poller.modify(&rx_server, Event::readable(0))?;
                 }
 
                 id => {
@@ -63,8 +63,22 @@ fn main() -> io::Result<()> {
                             }
                         };
 
+                        // 20210623222924 q
+                        // 20210624110819 s
+
+                        // To handle string message
                         if let Ok(utf8) = from_utf8(&data) {
-                            println!("{:?}", utf8);
+                            println!("{}", utf8);
+
+                            if !conn.handshake {
+                                conn.handshake = true;
+
+                                let mut parse = utf8.split(" ");
+                                let pass = parse.next().unwrap();
+                                let chan = parse.next().unwrap();
+
+                                if chan == "s" {}
+                            }
                         }
 
                         // Prepare it for more reads!
