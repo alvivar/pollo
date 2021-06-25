@@ -72,37 +72,48 @@ fn main() -> io::Result<()> {
                             }
                         };
 
-                        // Handle the string message.
+                        // Handle the message as string.
                         if let Ok(utf8) = from_utf8(&data) {
-                            println!("{}: {}", conn.addr, utf8.trim_end());
-
                             let msg = parse(utf8);
                             let op = msg.op.as_str();
                             let key = msg.key;
                             let val = msg.value;
 
-                            match op {
-                                // A subscription and a first message.
-                                "+" => {
-                                    let socket = conn.socket.try_clone().unwrap();
-                                    subs_tx
-                                        .send(subs::Cmd::Add(key.to_owned(), conn.id, socket))
-                                        .unwrap();
+                            if !key.is_empty() {
+                                match op {
+                                    // A subscription and a first message.
+                                    "+" => {
+                                        let socket = conn.socket.try_clone().unwrap();
+                                        subs_tx
+                                            .send(subs::Cmd::Add(key.to_owned(), conn.id, socket))
+                                            .unwrap();
 
-                                    subs_tx.send(subs::Cmd::Call(key, val)).unwrap()
+                                        if !val.is_empty() {
+                                            subs_tx.send(subs::Cmd::Call(key, val)).unwrap()
+                                        }
+                                    }
+
+                                    // A message to subscriptions.
+                                    ":" => {
+                                        subs_tx.send(subs::Cmd::Call(key, val)).unwrap();
+                                    }
+
+                                    // A desubscription and a last message.
+                                    "-" => {
+                                        if !val.is_empty() {
+                                            subs_tx
+                                                .send(subs::Cmd::Call(key.to_owned(), val))
+                                                .unwrap();
+                                        }
+
+                                        subs_tx.send(subs::Cmd::Del(key, conn.id)).unwrap();
+                                    }
+
+                                    _ => (),
                                 }
-
-                                // A message to subscriptions.
-                                ":" => subs_tx.send(subs::Cmd::Call(key, val)).unwrap(),
-
-                                // A desubscription and a last message.
-                                "-" => {
-                                    subs_tx.send(subs::Cmd::Call(key.to_owned(), val)).unwrap();
-                                    subs_tx.send(subs::Cmd::Del(key, conn.id)).unwrap();
-                                }
-
-                                _ => (),
                             }
+
+                            println!("{}: {}", conn.addr, utf8.trim_end());
                         }
 
                         // Prepare for more reads!
