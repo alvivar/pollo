@@ -3,14 +3,18 @@ use std::io;
 use std::io::Read;
 use std::net::TcpListener;
 use std::str::from_utf8;
+use std::thread;
 use std::usize;
 
 use polling::{Event, Poller};
 
 mod conn;
+mod parse;
 mod subs;
 
 use conn::Connection;
+use parse::parse;
+use subs::Subs;
 
 fn would_block(err: &io::Error) -> bool {
     err.kind() == io::ErrorKind::WouldBlock
@@ -21,16 +25,23 @@ fn interrupted(err: &io::Error) -> bool {
 }
 
 fn main() -> io::Result<()> {
-    let rx_server = TcpListener::bind("0.0.0.0:1984")?;
-    rx_server.set_nonblocking(true)?;
+    // The server and the smol Poller.
+    let server = TcpListener::bind("0.0.0.0:1984")?;
+    server.set_nonblocking(true)?;
 
     let poller = Poller::new()?;
-    poller.add(&rx_server, Event::readable(0))?;
+    poller.add(&server, Event::readable(0))?;
 
+    // Subscriptions
+    let mut subs = Subs::new();
+    let subs_tx = subs.tx.clone();
+    thread::spawn(move || subs.handle());
+
+    // Connections and events
     let mut id: usize = 1;
     let mut conns = HashMap::<usize, Connection>::new();
-
     let mut events = Vec::new();
+
     loop {
         events.clear();
         poller.wait(&mut events, None)?;
@@ -38,7 +49,7 @@ fn main() -> io::Result<()> {
         for ev in &events {
             match ev.key {
                 0 => {
-                    let (socket, addr) = rx_server.accept()?;
+                    let (socket, addr) = server.accept()?;
                     socket.set_nonblocking(true)?;
 
                     println!("New connection #{} from {}", id, addr);
@@ -46,11 +57,10 @@ fn main() -> io::Result<()> {
                     // Let's save the connection to read from it later.
                     poller.add(&socket, Event::readable(id))?;
                     conns.insert(id, Connection::new(id, socket, addr));
-
                     id += 1;
 
                     // Listen for more clients, always using 0.
-                    poller.modify(&rx_server, Event::readable(0))?;
+                    poller.modify(&server, Event::readable(0))?;
                 }
 
                 id => {
@@ -63,25 +73,35 @@ fn main() -> io::Result<()> {
                             }
                         };
 
-                        // 20210623222924 q
-                        // 20210624110819 s
-
-                        // To handle string message
+                        // Handle the string message.
                         if let Ok(utf8) = from_utf8(&data) {
                             println!("{}", utf8);
 
-                            if !conn.handshake {
-                                conn.handshake = true;
+                            let msg = parse(utf8);
+                            match msg.op.as_str() {
+                                // A subscription and a first message.
+                                "+" => {
+                                    // @todo Probably check if already subscribed before cloning the socket.
 
-                                let mut parse = utf8.split(" ");
-                                let pass = parse.next().unwrap();
-                                let chan = parse.next().unwrap();
+                                    let sub_socket = conn.socket.try_clone().unwrap();
+                                    subs_tx
+                                        .send(subs::Command::Create(msg.key, sub_socket))
+                                        .unwrap();
+                                }
 
-                                if chan == "s" {}
+                                // A message to subscriptions.
+                                ":" => subs_tx
+                                    .send(subs::Command::Call(msg.key, msg.value))
+                                    .unwrap(),
+
+                                // A desubscription and a last message.
+                                "-" => {}
+
+                                _ => unreachable!(),
                             }
                         }
 
-                        // Prepare it for more reads!
+                        // Prepare for more reads!
                         poller.modify(&conn.socket, Event::readable(conn.id))?;
                         conns.insert(id, conn);
                     }
