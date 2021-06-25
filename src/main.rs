@@ -75,7 +75,7 @@ fn main() -> io::Result<()> {
 
                         // Handle the string message.
                         if let Ok(utf8) = from_utf8(&data) {
-                            println!("{}", utf8);
+                            println!("{}: {}", conn.addr, utf8.trim_end());
 
                             let msg = parse(utf8);
                             match msg.op.as_str() {
@@ -83,10 +83,8 @@ fn main() -> io::Result<()> {
                                 "+" => {
                                     // @todo Probably check if already subscribed before cloning the socket.
 
-                                    let sub_socket = conn.socket.try_clone().unwrap();
-                                    subs_tx
-                                        .send(subs::Command::Create(msg.key, sub_socket))
-                                        .unwrap();
+                                    let socket = conn.socket.try_clone().unwrap();
+                                    subs_tx.send(subs::Command::Add(msg.key, socket)).unwrap();
                                 }
 
                                 // A message to subscriptions.
@@ -95,9 +93,11 @@ fn main() -> io::Result<()> {
                                     .unwrap(),
 
                                 // A desubscription and a last message.
-                                "-" => {}
+                                "-" => subs_tx.send(subs::Command::Del(msg.key, conn.id)).unwrap(),
 
-                                _ => unreachable!(),
+                                _ => {
+                                    println!("^ (?)");
+                                }
                             }
                         }
 

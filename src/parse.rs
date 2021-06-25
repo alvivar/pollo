@@ -36,5 +36,8 @@ pub fn parse(text: &str) -> Op {
         }
     }
 
+    let op = op.trim().to_owned();
+    let key = key.trim().to_owned();
+
     Op { op, key, value }
 }

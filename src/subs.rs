@@ -4,7 +4,8 @@ use std::net::TcpStream;
 use std::sync::mpsc::{channel, Receiver, Sender};
 
 pub enum Command {
-    Create(String, TcpStream),
+    Add(String, TcpStream),
+    Del(),
     Call(String, String),
 }
 
@@ -25,17 +26,26 @@ impl Subs {
     pub fn handle(&mut self) {
         loop {
             match self.rx.recv() {
-                Ok(Command::Create(key, socket)) => {
+                Ok(Command::Add(key, socket)) => {
                     let conns = self.registry.entry(key).or_insert_with(Vec::new);
                     conns.push(socket);
                 }
 
-                Ok(Command::Call(key, value)) => {
-                    let sockets = self.registry.entry(key).or_insert_with(Vec::new);
+                Ok(Command::Del()) => {}
 
-                    for socket in sockets {
-                        socket.write(value.as_bytes()).unwrap();
-                        socket.flush().unwrap();
+                Ok(Command::Call(key, value)) => {
+                    let sockets = self.registry.entry(key.to_owned()).or_insert_with(Vec::new);
+
+                    let mut lost_ones = Vec::<usize>::new();
+                    for (i, mut socket) in sockets.iter().enumerate() {
+                        if let Err(err) = socket.write(value.as_bytes()) {
+                            lost_ones.push(i);
+                            println!("Sub failed, dropping socket #{} from #{}: {}", i, key, err);
+                        }
+                    }
+
+                    for &index in lost_ones.iter().rev() {
+                        sockets.swap_remove(index);
                     }
                 }
 
