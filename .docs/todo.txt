@@ -1,0 +1,7 @@
+
+    Debug messages about bad queries (unknown operator, missing key)
+    Make sure clients can only subscribe once to each word
+
+
+    2021.06.25
+    x A full working prototype
