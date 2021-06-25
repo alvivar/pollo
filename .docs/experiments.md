@@ -1,3 +1,0 @@
-# Experiments
-
-## Prototype 1
