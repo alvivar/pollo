@@ -48,7 +48,8 @@ impl Subs {
 
                     let mut lost_ones = Vec::<usize>::new();
                     for (i, sub) in subs.iter_mut().enumerate() {
-                        if let Err(err) = sub.socket.write(value.as_bytes()) {
+                        let msg = format!("{} {}", key, value);
+                        if let Err(err) = sub.socket.write(msg.as_bytes()) {
                             println!("Sub failed, dropping socket #{} from #{}: {}", i, key, err);
                             lost_ones.push(i);
                         }
@@ -59,7 +60,7 @@ impl Subs {
                     }
                 }
 
-                Err(_) => {}
+                Err(err) => panic!("The sub channel failed: {}", err),
             }
         }
     }

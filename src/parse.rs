@@ -13,11 +13,11 @@ pub fn parse(text: &str) -> Msg {
     for c in text.chars() {
         match c {
             ' ' => {
-                if value.len() > 0 {
+                if !value.is_empty() {
                     value.push(' ');
-                } else if key.len() > 0 {
+                } else if !key.is_empty() {
                     deep = 2;
-                } else if op.len() > 0 {
+                } else if !op.is_empty() {
                     deep = 1;
                 }
             }
@@ -36,7 +36,7 @@ pub fn parse(text: &str) -> Msg {
         }
     }
 
-    let op = op.trim().to_owned();
+    let op = op.trim_end().to_owned();
     let key = key.trim().to_owned();
 
     Msg { op, key, value }

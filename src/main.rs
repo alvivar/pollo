@@ -4,7 +4,6 @@ use std::io::Read;
 use std::net::TcpListener;
 use std::str::from_utf8;
 use std::thread;
-use std::usize;
 
 use polling::{Event, Poller};
 
