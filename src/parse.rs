@@ -9,6 +9,7 @@ pub struct Msg {
 ///
 /// This text: +hello world is a pretty old meme
 /// Returns: Msg { "+", "hello", "world is a pretty old meme" }
+///
 pub fn parse(text: &str) -> Msg {
     let mut op = String::new();
     let mut key = String::new();

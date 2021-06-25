@@ -1,6 +1,8 @@
 
     Debug messages about bad queries (unknown operator, missing key)
     Make sure clients can only subscribe once to each word
+    Multi-thread!
+    Websockets!
 
 
     2021.06.25
