@@ -6,10 +6,10 @@ pub struct Msg {
 
 /// Returns a Msg with the first character found as op, the next word as key,
 /// and the rest as value.
-///
+
 /// This text: +hello world is a pretty old meme
 /// Returns: Msg { "+", "hello", "world is a pretty old meme" }
-///
+
 pub fn parse(text: &str) -> Msg {
     let mut op = String::new();
     let mut key = String::new();

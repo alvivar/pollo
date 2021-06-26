@@ -32,10 +32,13 @@ impl Subs {
         loop {
             match self.rx.recv() {
                 Ok(Cmd::Add(key, id, socket)) => {
-                    self.registry
-                        .entry(key.to_owned())
-                        .or_insert_with(Vec::new)
-                        .push(Sub { id, socket });
+                    let subs = self.registry.entry(key.to_owned()).or_insert_with(Vec::new);
+
+                    if subs.iter().any(|x| x.id == id) {
+                        continue;
+                    }
+
+                    subs.push(Sub { id, socket })
                 }
 
                 Ok(Cmd::Del(key, id)) => {
@@ -46,16 +49,16 @@ impl Subs {
                 Ok(Cmd::Call(key, value)) => {
                     let subs = self.registry.entry(key.to_owned()).or_insert_with(Vec::new);
 
-                    let mut lost_ones = Vec::<usize>::new();
+                    let mut broken = Vec::<usize>::new();
                     for (i, sub) in subs.iter_mut().enumerate() {
                         let msg = format!("{} {}", key, value);
                         if let Err(err) = sub.socket.write(msg.as_bytes()) {
-                            println!("Sub failed, dropping socket #{} from #{}: {}", i, key, err);
-                            lost_ones.push(i);
+                            println!("Sub broken, dropping socket #{} from #{}: {}", i, key, err);
+                            broken.push(i);
                         }
                     }
 
-                    for &index in lost_ones.iter().rev() {
+                    for &index in broken.iter().rev() {
                         subs.swap_remove(index);
                     }
                 }

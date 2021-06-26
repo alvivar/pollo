@@ -58,7 +58,7 @@ fn main() -> io::Result<()> {
                     conns.insert(id, Connection::new(id, socket, addr));
                     id += 1;
 
-                    // Listen for more clients, always using 0.
+                    // Continue listen for clients, always 0.
                     poller.modify(&server, Event::readable(0))?;
                 }
 
