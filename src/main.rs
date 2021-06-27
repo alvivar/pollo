@@ -50,8 +50,8 @@ fn main() -> io::Result<()> {
     // The thread pool that handles reading the connection and calling
     // subscriptions accordinly.
     let mut work = ThreadPool::new(4);
-    let (reader_tx, work_rx) = channel::<Connection>();
-    let reader_rx = Arc::new(Mutex::new(work_rx));
+    let (reader_tx, reader_rx) = channel::<Connection>();
+    let reader_rx = Arc::new(Mutex::new(reader_rx));
 
     for _ in 0..work.size() {
         let reader_rx = reader_rx.clone();
