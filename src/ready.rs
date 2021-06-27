@@ -31,7 +31,7 @@ impl Ready {
 
     pub fn handle(self) {
         loop {
-            if let Ok(conn) = self.rx.try_recv() {
+            if let Ok(conn) = self.rx.recv() {
                 self.poller
                     .modify(&conn.socket, Event::readable(conn.id))
                     .unwrap();

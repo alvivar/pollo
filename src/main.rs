@@ -38,17 +38,15 @@ fn main() -> io::Result<()> {
     let subs_tx = subs.tx.clone();
     thread::spawn(move || subs.handle());
 
-    // Thread that re-register the connection for polling after the reading
-    // thread.
+    // Thread that re-register the connection for more reading events.
     let ready_poller = poller.clone();
     let ready_conns = conns.clone();
     let ready = Ready::new(ready_poller, ready_conns);
     let ready_tx = ready.tx.clone();
-
     thread::spawn(move || ready.handle());
 
-    // The infamous thread pool that handles reading the connection and calling
-    // the subscription accordinly.
+    // The thread pool that handles reading the connection and calling
+    // subscriptions accordinly.
     let mut work = ThreadPool::new(4);
     let (reader_tx, work_rx) = channel::<Connection>();
     let reader_rx = Arc::new(Mutex::new(work_rx));
@@ -63,7 +61,7 @@ fn main() -> io::Result<()> {
         work.submit(move || reader.handle(subs_tx, ready_tx));
     }
 
-    // Connections and events via Poller.
+    // Connections and events via smol Poller.
     let mut id: usize = 1;
     let mut events = Vec::new();
 
@@ -79,16 +77,15 @@ fn main() -> io::Result<()> {
 
                     println!("Connection #{} from {}", id, addr);
 
-                    // Let's save the connection to read from it later.
+                    // Save the new connection.
                     poller.add(&socket, Event::readable(id))?;
                     conns
                         .lock()
                         .unwrap()
                         .insert(id, Connection::new(id, socket, addr));
-
                     id += 1;
 
-                    // Continue listen for clients, always 0.
+                    // The server continues listening for more clients, always 0.
                     poller.modify(&server, Event::readable(0))?;
                 }
 
