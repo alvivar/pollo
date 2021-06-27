@@ -1,14 +1,8 @@
 # pollo
 
-Simple Pub Sub with Rust. The only dependency is
+Simple multi-thread publish subscribe server with Rust. The only dependency is
 [**Polling**](https://github.com/smol-rs/polling) from
-[**smol**](https://github.com/smol-rs/smol) and the standard library.
-
-Next step is to make it multi-thread, later on websockets.
-
-I'm prototyping how to handle clients and subscriptions to improve
-[Bite](https://github.com/alvivar/bite), a bigger more complex _key value_
-server I use in multiplayer experiments.
+[**smol**](https://github.com/smol-rs/smol).
 
 ## How it works
 
