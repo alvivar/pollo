@@ -18,7 +18,7 @@ impl Reader {
         Reader { rx }
     }
 
-    pub fn handle(&self, subs_tx: Sender<subs::Cmd>, ready_tx: Sender<Connection>) {
+    pub fn handle(self, subs_tx: Sender<subs::Cmd>, ready_tx: Sender<Connection>) {
         loop {
             let mut conn = self.rx.lock().unwrap().recv().unwrap();
 
