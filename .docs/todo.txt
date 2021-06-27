@@ -1,4 +1,7 @@
 
+    A writer system
+    The writer system should be compatible with the thread pool, probably
+    The subs system should call the writer instead
     Websockets?
 
 
