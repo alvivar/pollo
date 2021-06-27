@@ -1,5 +1,4 @@
 use std::net::{SocketAddr, TcpStream};
-use std::usize;
 
 pub struct Connection {
     pub id: usize,

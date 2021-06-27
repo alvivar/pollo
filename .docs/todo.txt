@@ -1,9 +1,10 @@
 
-    Debug messages about bad queries (unknown operator, missing key)
-    Websockets!
+    Websockets?
 
 
     2021.06.26
+    x Compact poller functionality
+    . Debug messages about bad queries (unknown operator, missing key)
     x Multi-thread!
 
     2021.06.25

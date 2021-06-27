@@ -1,7 +1,10 @@
-use std::sync::mpsc::{channel, Receiver, Sender};
-use std::sync::{Arc, Mutex};
-use std::thread;
-use std::thread::JoinHandle;
+use std::{
+    sync::{
+        mpsc::{channel, Receiver, Sender},
+        Arc, Mutex,
+    },
+    thread::{self, JoinHandle},
+};
 
 type Work = Box<dyn FnOnce() + Send + 'static>;
 

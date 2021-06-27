@@ -1,7 +1,9 @@
-use std::collections::HashMap;
-use std::io::Write;
-use std::net::TcpStream;
-use std::sync::mpsc::{channel, Receiver, Sender};
+use std::{
+    collections::HashMap,
+    io::Write,
+    net::TcpStream,
+    sync::mpsc::{channel, Receiver, Sender},
+};
 
 pub enum Cmd {
     Add(String, usize, TcpStream),

@@ -1,32 +1,25 @@
-use std::collections::HashMap;
-use std::io;
-use std::io::Read;
-use std::net::TcpListener;
-use std::str::from_utf8;
-use std::sync::mpsc::channel;
-use std::sync::Arc;
-use std::sync::Mutex;
-use std::thread;
+use std::{
+    collections::HashMap,
+    io,
+    net::TcpListener,
+    sync::{mpsc::channel, Arc, Mutex},
+    thread,
+};
 
 use polling::{Event, Poller};
 
 mod conn;
 mod parse;
 mod pool;
+mod reader;
+mod ready;
 mod subs;
 
 use conn::Connection;
-use parse::parse;
 use pool::ThreadPool;
+use reader::Reader;
+use ready::Ready;
 use subs::Subs;
-
-fn would_block(err: &io::Error) -> bool {
-    err.kind() == io::ErrorKind::WouldBlock
-}
-
-fn interrupted(err: &io::Error) -> bool {
-    err.kind() == io::ErrorKind::Interrupted
-}
 
 fn main() -> io::Result<()> {
     // The server and the smol Poller.
@@ -40,97 +33,37 @@ fn main() -> io::Result<()> {
     let conns = HashMap::<usize, Connection>::new();
     let conns = Arc::new(Mutex::new(conns));
 
-    // Subscriptions
+    // Subscriptions thread
     let mut subs = Subs::new();
     let subs_tx = subs.tx.clone();
     thread::spawn(move || subs.handle());
 
-    // Thread that readys the connections.
-    let (ready_tx, ready_rx) = channel::<Connection>();
-    let ready_conns = conns.clone();
+    // Thread that re-register the connection for polling after the reading
+    // thread.
     let ready_poller = poller.clone();
+    let ready_conns = conns.clone();
+    let ready = Ready::new(ready_poller, ready_conns);
+    let ready_tx = ready.tx.clone();
 
-    thread::spawn(move || loop {
-        if let Ok(conn) = ready_rx.try_recv() {
-            ready_poller
-                .modify(&conn.socket, Event::readable(conn.id))
-                .unwrap();
+    thread::spawn(move || ready.handle());
 
-            ready_conns.lock().unwrap().insert(conn.id, conn);
-        }
-    });
-
-    // The infamous thread pool.
+    // The infamous thread pool that handles reading the connection and calling
+    // the subscription accordinly.
     let mut work = ThreadPool::new(4);
-    let (work_tx, work_rx) = channel::<Connection>();
-    let work_rx = Arc::new(Mutex::new(work_rx));
+    let (reader_tx, work_rx) = channel::<Connection>();
+    let reader_rx = Arc::new(Mutex::new(work_rx));
 
     for _ in 0..work.size() {
+        let reader_rx = reader_rx.clone();
+        let reader = Reader::new(reader_rx);
+
         let subs_tx = subs_tx.clone();
-        let work_rx = work_rx.clone();
         let ready_tx = ready_tx.clone();
 
-        work.submit(move || {
-            loop {
-                let mut conn = work_rx.lock().unwrap().recv().unwrap();
-
-                let data = match read(&mut conn) {
-                    Ok(data) => data,
-                    Err(err) => {
-                        println!("Connection #{} lost: {}", conn.id, err);
-                        continue;
-                    }
-                };
-
-                // Handle the message as string.
-                if let Ok(utf8) = from_utf8(&data) {
-                    let msg = parse(utf8);
-                    let op = msg.op.as_str();
-                    let key = msg.key;
-                    let val = msg.value;
-
-                    if !key.is_empty() {
-                        match op {
-                            // A subscription and a first message.
-                            "+" => {
-                                let socket = conn.socket.try_clone().unwrap();
-                                subs_tx
-                                    .send(subs::Cmd::Add(key.to_owned(), conn.id, socket))
-                                    .unwrap();
-
-                                if !val.is_empty() {
-                                    subs_tx.send(subs::Cmd::Call(key, val)).unwrap()
-                                }
-                            }
-
-                            // A message to subscriptions.
-                            ":" => {
-                                subs_tx.send(subs::Cmd::Call(key, val)).unwrap();
-                            }
-
-                            // A desubscription and a last message.
-                            "-" => {
-                                if !val.is_empty() {
-                                    subs_tx.send(subs::Cmd::Call(key.to_owned(), val)).unwrap();
-                                }
-
-                                subs_tx.send(subs::Cmd::Del(key, conn.id)).unwrap();
-                            }
-
-                            _ => (),
-                        }
-                    }
-
-                    println!("{}: {}", conn.addr, utf8.trim_end());
-                }
-
-                // println!("Sending to ready!");
-                ready_tx.send(conn).unwrap();
-            }
-        });
+        work.submit(move || reader.handle(subs_tx, ready_tx));
     }
 
-    // Connections and events
+    // Connections and events via Poller.
     let mut id: usize = 1;
     let mut events = Vec::new();
 
@@ -161,46 +94,10 @@ fn main() -> io::Result<()> {
 
                 id => {
                     if let Some(conn) = conns.lock().unwrap().remove(&id) {
-                        work_tx.send(conn).unwrap();
+                        reader_tx.send(conn).unwrap();
                     }
                 }
             }
         }
     }
-}
-
-/// Returns the bytes read from a connection.
-fn read(conn: &mut Connection) -> io::Result<Vec<u8>> {
-    let mut received = vec![0; 1024 * 4];
-    let mut bytes_read = 0;
-
-    loop {
-        match conn.socket.read(&mut received[bytes_read..]) {
-            Ok(0) => {
-                // Reading 0 bytes means the other side has closed the
-                // connection or is done writing, then so are we.
-                return Err(io::Error::new(io::ErrorKind::BrokenPipe, "0 bytes read"));
-            }
-            Ok(n) => {
-                bytes_read += n;
-                if bytes_read == received.len() {
-                    received.resize(received.len() + 1024, 0);
-                }
-            }
-            // Would block "errors" are the OS's way of saying that the
-            // connection is not actually ready to perform this I/O operation.
-            // @todo Wondering if this should be a panic instead.
-            Err(ref err) if would_block(err) => break,
-            Err(ref err) if interrupted(err) => continue,
-            // Other errors we'll consider fatal.
-            Err(err) => return Err(err),
-        }
-    }
-
-    // let received_data = &received_data[..bytes_read]; // @doubt Using this
-    // slice thing and returning with into() versus using the resize? Hm.
-
-    received.resize(bytes_read, 0);
-
-    Ok(received)
 }
