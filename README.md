@@ -1,8 +1,11 @@
 # pollo
 
-Simple multi-thread [Pub Sub](https://en.wikipedia.org/wiki/Publish%E2%80%93subscribe_pattern) server with Rust. The only dependency is
-[**Polling**](https://github.com/smol-rs/polling) from
-[**smol**](https://github.com/smol-rs/smol).
+Simple multi-thread [Pub
+Sub](https://en.wikipedia.org/wiki/Publish%E2%80%93subscribe_pattern) server
+with Rust.
+
+I wanted to learn how to use [**Polling**](https://github.com/smol-rs/polling)
+from [**smol**](https://github.com/smol-rs/smol).
 
 Maybe later, I'll explore how to make it compatible with websockets.
 
