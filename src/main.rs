@@ -36,6 +36,7 @@ fn main() -> io::Result<()> {
     // Subscriptions thread
     let mut subs = Subs::new();
     let subs_tx = subs.tx.clone();
+
     thread::spawn(move || subs.handle());
 
     // Thread that re-register the connection for more reading events.
@@ -43,6 +44,7 @@ fn main() -> io::Result<()> {
     let ready_conns = conns.clone();
     let ready = Ready::new(ready_poller, ready_conns);
     let ready_tx = ready.tx.clone();
+
     thread::spawn(move || ready.handle());
 
     // The thread pool that handles reading the connection and calling
