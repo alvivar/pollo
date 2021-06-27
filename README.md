@@ -1,8 +1,10 @@
 # pollo
 
-Simple multi-thread publish subscribe server with Rust. The only dependency is
+Simple multi-thread [Pub Sub](https://en.wikipedia.org/wiki/Publish%E2%80%93subscribe_pattern) server with Rust. The only dependency is
 [**Polling**](https://github.com/smol-rs/polling) from
 [**smol**](https://github.com/smol-rs/smol).
+
+Maybe later, I'll explore how to make it compatible with websockets.
 
 ## How it works
 
@@ -42,3 +44,5 @@ In unix consoles you can connect with
 [**nc**](https://en.wikipedia.org/wiki/Netcat) as client:
 
     $ nc 127.0.0.1 1984
+
+But any TcpStream stream from your favorite language will do.
