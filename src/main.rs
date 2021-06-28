@@ -57,7 +57,7 @@ fn main() -> io::Result<()> {
     let (work_tx, work_rx) = channel::<Work>();
     let work_rx = Arc::new(Mutex::new(work_rx));
 
-    // Subscriptions thread
+    // Subscriptions thread.
     let subs_work_tx = work_tx.clone();
     let mut subs = Subs::new(subs_work_tx);
     let subs_tx = subs.tx.clone();
