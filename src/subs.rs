@@ -1,67 +1,60 @@
 use std::{
     collections::HashMap,
-    io::Write,
-    net::TcpStream,
     sync::mpsc::{channel, Receiver, Sender},
 };
 
+use crate::Work;
+
 pub enum Cmd {
-    Add(String, usize, TcpStream),
+    Add(String, usize),
     Del(String, usize),
     Call(String, String),
 }
 
-struct Sub {
-    id: usize,
-    socket: TcpStream,
-}
-
 pub struct Subs {
-    registry: HashMap<String, Vec<Sub>>,
+    registry: HashMap<String, Vec<usize>>,
+    work_tx: Sender<Work>,
     pub tx: Sender<Cmd>,
     rx: Receiver<Cmd>,
 }
 
 impl Subs {
-    pub fn new() -> Subs {
-        let registry = HashMap::<String, Vec<Sub>>::new();
+    pub fn new(work_tx: Sender<Work>) -> Subs {
+        let registry = HashMap::<String, Vec<usize>>::new();
         let (tx, rx) = channel::<Cmd>();
 
-        Subs { registry, tx, rx }
+        Subs {
+            registry,
+            work_tx,
+            tx,
+            rx,
+        }
     }
 
     pub fn handle(&mut self) {
         loop {
             match self.rx.recv() {
-                Ok(Cmd::Add(key, id, socket)) => {
+                Ok(Cmd::Add(key, id)) => {
                     let subs = self.registry.entry(key.to_owned()).or_insert_with(Vec::new);
 
-                    if subs.iter().any(|x| x.id == id) {
+                    if subs.iter().any(|x| x == &id) {
                         continue;
                     }
 
-                    subs.push(Sub { id, socket })
+                    subs.push(id)
                 }
 
                 Ok(Cmd::Del(key, id)) => {
                     let subs = self.registry.entry(key.to_owned()).or_insert_with(Vec::new);
-                    subs.retain(|x| x.id != id);
+                    subs.retain(|x| x != &id);
                 }
 
                 Ok(Cmd::Call(key, value)) => {
-                    let subs = self.registry.entry(key.to_owned()).or_insert_with(Vec::new);
-
-                    let mut broken = Vec::<usize>::new();
-                    for (i, sub) in subs.iter_mut().enumerate() {
-                        let msg = format!("{} {}", key, value);
-                        if let Err(err) = sub.socket.write(msg.as_bytes()) {
-                            println!("Sub broken, dropping socket #{} from #{}: {}", i, key, err);
-                            broken.push(i);
+                    if let Some(subs) = self.registry.get(&key) {
+                        for &id in subs {
+                            let msg = format!("{} {}", key, value);
+                            self.work_tx.send(Work::Write(id, msg)).unwrap();
                         }
-                    }
-
-                    for &index in broken.iter().rev() {
-                        subs.swap_remove(index);
                     }
                 }
 

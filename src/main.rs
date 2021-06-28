@@ -1,7 +1,7 @@
 use std::{
     collections::HashMap,
     io,
-    net::TcpListener,
+    net::{TcpListener, TcpStream},
     sync::{mpsc::channel, Arc, Mutex},
     thread,
 };
@@ -14,12 +14,20 @@ mod pool;
 mod reader;
 mod ready;
 mod subs;
+mod writer;
 
 use conn::Connection;
 use pool::ThreadPool;
 use reader::Reader;
 use ready::Ready;
 use subs::Subs;
+use writer::Writer;
+
+pub enum Work {
+    Read(Connection),
+    Write(usize, String),
+    Register(usize, TcpStream),
+}
 
 fn main() -> io::Result<()> {
     // The server and the smol Poller.
@@ -33,34 +41,48 @@ fn main() -> io::Result<()> {
     let conns = HashMap::<usize, Connection>::new();
     let conns = Arc::new(Mutex::new(conns));
 
-    // Subscriptions thread
-    let mut subs = Subs::new();
-    let subs_tx = subs.tx.clone();
-
-    thread::spawn(move || subs.handle());
+    let write_map = HashMap::<usize, TcpStream>::new();
+    let write_map = Arc::new(Mutex::new(write_map));
 
     // Thread that re-register the connection for more reading events.
     let ready_poller = poller.clone();
     let ready_conns = conns.clone();
     let ready = Ready::new(ready_poller, ready_conns);
     let ready_tx = ready.tx.clone();
-
     thread::spawn(move || ready.handle());
 
     // The thread pool that handles reading the connection and calling
     // subscriptions accordinly.
     let mut work = ThreadPool::new(4);
-    let (reader_tx, reader_rx) = channel::<Connection>();
-    let reader_rx = Arc::new(Mutex::new(reader_rx));
+    let (work_tx, work_rx) = channel::<Work>();
+    let work_rx = Arc::new(Mutex::new(work_rx));
+
+    // Subscriptions thread
+    let subs_work_tx = work_tx.clone();
+    let mut subs = Subs::new(subs_work_tx);
+    let subs_tx = subs.tx.clone();
+    thread::spawn(move || subs.handle());
 
     for _ in 0..work.size() {
-        let reader_rx = reader_rx.clone();
-        let reader = Reader::new(reader_rx);
-
+        let work_rx = work_rx.clone();
         let subs_tx = subs_tx.clone();
         let ready_tx = ready_tx.clone();
+        let write_map = write_map.clone();
 
-        work.submit(move || reader.handle(subs_tx, ready_tx));
+        work.submit(move || loop {
+            let subs_tx = subs_tx.clone();
+            let ready_tx = ready_tx.clone();
+
+            let reader = Reader::new(subs_tx, ready_tx);
+            let write_map = write_map.clone();
+            let mut writer = Writer::new(write_map);
+
+            match work_rx.lock().unwrap().recv().unwrap() {
+                Work::Read(conn) => reader.handle(conn),
+                Work::Register(id, socket) => writer.register(id, socket),
+                Work::Write(id, msg) => writer.handle(id, msg),
+            }
+        });
     }
 
     // Connections and events via smol Poller.
@@ -76,6 +98,10 @@ fn main() -> io::Result<()> {
                 0 => {
                     let (socket, addr) = server.accept()?;
                     socket.set_nonblocking(true)?;
+
+                    let work_socket = socket.try_clone().unwrap();
+                    work_socket.set_nonblocking(true)?;
+                    work_tx.send(Work::Register(id, work_socket)).unwrap();
 
                     println!("Connection #{} from {}", id, addr);
 
@@ -93,7 +119,7 @@ fn main() -> io::Result<()> {
 
                 id => {
                     if let Some(conn) = conns.lock().unwrap().remove(&id) {
-                        reader_tx.send(conn).unwrap();
+                        work_tx.send(Work::Read(conn)).unwrap();
                     }
                 }
             }
