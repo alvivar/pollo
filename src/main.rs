@@ -43,29 +43,31 @@ fn main() -> io::Result<()> {
     let write_map = HashMap::<usize, Connection>::new();
     let write_map = Arc::new(Mutex::new(write_map));
 
-    // Thread that re-register the connection for more reading events.
+    // Thread that re-register the connection for more reading events, and to be
+    // written again after the thread pool finished.
     let ready_poller = poller.clone();
     let ready_read_map = read_map.clone();
     let ready_write_map = write_map.clone();
-
     let ready = Ready::new(ready_poller, ready_read_map, ready_write_map);
     let ready_tx = ready.tx.clone();
     thread::spawn(move || ready.handle());
 
-    // The thread pool that handles reading the connection and calling
-    // subscriptions accordinly.
+    // Channels to send work to the thread pool that handles reading and
+    // writing.
     let mut work = ThreadPool::new(4);
     let (work_tx, work_rx) = channel::<Work>();
     let work_rx = Arc::new(Mutex::new(work_rx));
 
-    // Subscriptions thread.
+    // Thread that handles subscriptions, sends writing jobs to the thread when
+    // needed.
     let subs_write_map = write_map.clone();
     let subs_work_tx = work_tx.clone();
     let mut subs = Subs::new(subs_write_map, subs_work_tx);
     let subs_tx = subs.tx.clone();
-
     thread::spawn(move || subs.handle());
 
+    // A pool of threads handling reads and writes. Reading also talks with the
+    // the subscription system.
     for _ in 0..work.size() {
         let work_rx = work_rx.clone();
         let subs_tx = subs_tx.clone();
@@ -103,7 +105,7 @@ fn main() -> io::Result<()> {
 
                     println!("Connection #{} from {}", id, addr);
 
-                    // Prepare the reading socket.
+                    // Register the reading socket for reading events, and save it.
                     poller.add(&read_socket, Event::readable(id))?;
 
                     read_map
@@ -111,13 +113,13 @@ fn main() -> io::Result<()> {
                         .unwrap()
                         .insert(id, Connection::new(id, read_socket, addr));
 
-                    // Register the writing socket.
+                    // Save the writing socket for later.
                     write_map
                         .lock()
                         .unwrap()
                         .insert(id, Connection::new(id, work_socket, addr));
 
-                    // Next one.
+                    // One more connection.
                     id += 1;
 
                     // The server continues listening for more clients, always 0.
