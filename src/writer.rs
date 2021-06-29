@@ -14,10 +14,6 @@ impl Writer {
         Writer { registry }
     }
 
-    pub fn register(&mut self, id: usize, socket: TcpStream) {
-        self.registry.lock().unwrap().insert(id, socket);
-    }
-
     pub fn handle(self, id: usize, msg: String) {
         let mut registry = self.registry.lock().unwrap();
         if let Some(mut socket) = registry.get(&id) {

@@ -26,7 +26,6 @@ use writer::Writer;
 pub enum Work {
     Read(Connection),
     Write(usize, String),
-    Register(usize, TcpStream),
 }
 
 fn main() -> io::Result<()> {
@@ -38,15 +37,15 @@ fn main() -> io::Result<()> {
     poller.add(&server, Event::readable(0))?;
     let poller = Arc::new(poller);
 
-    let conns = HashMap::<usize, Connection>::new();
-    let conns = Arc::new(Mutex::new(conns));
+    let read_map = HashMap::<usize, Connection>::new();
+    let read_map = Arc::new(Mutex::new(read_map));
 
     let write_map = HashMap::<usize, TcpStream>::new();
     let write_map = Arc::new(Mutex::new(write_map));
 
     // Thread that re-register the connection for more reading events.
     let ready_poller = poller.clone();
-    let ready_conns = conns.clone();
+    let ready_conns = read_map.clone();
     let ready = Ready::new(ready_poller, ready_conns);
     let ready_tx = ready.tx.clone();
     thread::spawn(move || ready.handle());
@@ -75,11 +74,10 @@ fn main() -> io::Result<()> {
 
             let reader = Reader::new(subs_tx, ready_tx);
             let write_map = write_map.clone();
-            let mut writer = Writer::new(write_map);
+            let writer = Writer::new(write_map);
 
             match work_rx.lock().unwrap().recv().unwrap() {
                 Work::Read(conn) => reader.handle(conn),
-                Work::Register(id, socket) => writer.register(id, socket),
                 Work::Write(id, msg) => writer.handle(id, msg),
             }
         });
@@ -96,21 +94,24 @@ fn main() -> io::Result<()> {
         for ev in &events {
             match ev.key {
                 0 => {
-                    let (socket, addr) = server.accept()?;
-                    socket.set_nonblocking(true)?;
-
-                    let work_socket = socket.try_clone().unwrap();
-                    work_socket.set_nonblocking(true)?;
-                    work_tx.send(Work::Register(id, work_socket)).unwrap();
+                    let (read_socket, addr) = server.accept()?;
+                    read_socket.set_nonblocking(true)?;
+                    let work_socket = read_socket.try_clone().unwrap();
 
                     println!("Connection #{} from {}", id, addr);
 
-                    // Save the new connection.
-                    poller.add(&socket, Event::readable(id))?;
-                    conns
+                    // Prepare the reading socket.
+                    poller.add(&read_socket, Event::readable(id))?;
+
+                    read_map
                         .lock()
                         .unwrap()
-                        .insert(id, Connection::new(id, socket, addr));
+                        .insert(id, Connection::new(id, read_socket, addr));
+
+                    // Register the writing socket.
+                    write_map.lock().unwrap().insert(id, work_socket);
+
+                    // Next one.
                     id += 1;
 
                     // The server continues listening for more clients, always 0.
@@ -118,7 +119,7 @@ fn main() -> io::Result<()> {
                 }
 
                 id => {
-                    if let Some(conn) = conns.lock().unwrap().remove(&id) {
+                    if let Some(conn) = read_map.lock().unwrap().remove(&id) {
                         work_tx.send(Work::Read(conn)).unwrap();
                     }
                 }
