@@ -1,9 +1,12 @@
 use std::{
     collections::HashMap,
-    sync::mpsc::{channel, Receiver, Sender},
+    sync::{
+        mpsc::{channel, Receiver, Sender},
+        Arc, Mutex,
+    },
 };
 
-use crate::Work;
+use crate::{conn::Connection, Work};
 
 pub enum Cmd {
     Add(String, usize),
@@ -13,18 +16,20 @@ pub enum Cmd {
 
 pub struct Subs {
     registry: HashMap<String, Vec<usize>>,
+    write_map: Arc<Mutex<HashMap<usize, Connection>>>,
     work_tx: Sender<Work>,
     pub tx: Sender<Cmd>,
     rx: Receiver<Cmd>,
 }
 
 impl Subs {
-    pub fn new(work_tx: Sender<Work>) -> Subs {
+    pub fn new(write_map: Arc<Mutex<HashMap<usize, Connection>>>, work_tx: Sender<Work>) -> Subs {
         let registry = HashMap::<String, Vec<usize>>::new();
         let (tx, rx) = channel::<Cmd>();
 
         Subs {
             registry,
+            write_map,
             work_tx,
             tx,
             rx,
@@ -53,7 +58,9 @@ impl Subs {
                     if let Some(subs) = self.registry.get(&key) {
                         for &id in subs {
                             let msg = format!("{} {}", key, value);
-                            self.work_tx.send(Work::Write(id, msg)).unwrap();
+                            if let Some(conn) = self.write_map.lock().unwrap().remove(&id) {
+                                self.work_tx.send(Work::Write(conn, msg)).unwrap();
+                            }
                         }
                     }
                 }

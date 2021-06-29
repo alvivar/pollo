@@ -1,7 +1,7 @@
 use std::{
     collections::HashMap,
     io,
-    net::{TcpListener, TcpStream},
+    net::TcpListener,
     sync::{mpsc::channel, Arc, Mutex},
     thread,
 };
@@ -25,7 +25,7 @@ use writer::Writer;
 
 pub enum Work {
     Read(Connection),
-    Write(usize, String),
+    Write(Connection, String),
 }
 
 fn main() -> io::Result<()> {
@@ -40,13 +40,15 @@ fn main() -> io::Result<()> {
     let read_map = HashMap::<usize, Connection>::new();
     let read_map = Arc::new(Mutex::new(read_map));
 
-    let write_map = HashMap::<usize, TcpStream>::new();
+    let write_map = HashMap::<usize, Connection>::new();
     let write_map = Arc::new(Mutex::new(write_map));
 
     // Thread that re-register the connection for more reading events.
     let ready_poller = poller.clone();
-    let ready_conns = read_map.clone();
-    let ready = Ready::new(ready_poller, ready_conns);
+    let ready_read_map = read_map.clone();
+    let ready_write_map = write_map.clone();
+
+    let ready = Ready::new(ready_poller, ready_read_map, ready_write_map);
     let ready_tx = ready.tx.clone();
     thread::spawn(move || ready.handle());
 
@@ -57,28 +59,29 @@ fn main() -> io::Result<()> {
     let work_rx = Arc::new(Mutex::new(work_rx));
 
     // Subscriptions thread.
+    let subs_write_map = write_map.clone();
     let subs_work_tx = work_tx.clone();
-    let mut subs = Subs::new(subs_work_tx);
+    let mut subs = Subs::new(subs_write_map, subs_work_tx);
     let subs_tx = subs.tx.clone();
+
     thread::spawn(move || subs.handle());
 
     for _ in 0..work.size() {
         let work_rx = work_rx.clone();
         let subs_tx = subs_tx.clone();
         let ready_tx = ready_tx.clone();
-        let write_map = write_map.clone();
 
         work.submit(move || loop {
             let subs_tx = subs_tx.clone();
-            let ready_tx = ready_tx.clone();
+            let reader_ready_tx = ready_tx.clone();
+            let reader = Reader::new(subs_tx, reader_ready_tx);
 
-            let reader = Reader::new(subs_tx, ready_tx);
-            let write_map = write_map.clone();
-            let writer = Writer::new(write_map);
+            let writer_ready_tx = ready_tx.clone();
+            let writer = Writer::new(writer_ready_tx);
 
             match work_rx.lock().unwrap().recv().unwrap() {
                 Work::Read(conn) => reader.handle(conn),
-                Work::Write(id, msg) => writer.handle(id, msg),
+                Work::Write(conn, msg) => writer.handle(conn, msg),
             }
         });
     }
@@ -109,7 +112,10 @@ fn main() -> io::Result<()> {
                         .insert(id, Connection::new(id, read_socket, addr));
 
                     // Register the writing socket.
-                    write_map.lock().unwrap().insert(id, work_socket);
+                    write_map
+                        .lock()
+                        .unwrap()
+                        .insert(id, Connection::new(id, work_socket, addr));
 
                     // Next one.
                     id += 1;

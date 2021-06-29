@@ -7,16 +7,17 @@ use std::{
 use crate::{
     conn::Connection,
     parse::parse,
-    subs::{self, Cmd},
+    ready,
+    subs::{self},
 };
 
 pub struct Reader {
-    subs_tx: Sender<Cmd>,
-    ready_tx: Sender<Connection>,
+    subs_tx: Sender<subs::Cmd>,
+    ready_tx: Sender<ready::Cmd>,
 }
 
 impl Reader {
-    pub fn new(subs_tx: Sender<subs::Cmd>, ready_tx: Sender<Connection>) -> Reader {
+    pub fn new(subs_tx: Sender<subs::Cmd>, ready_tx: Sender<ready::Cmd>) -> Reader {
         Reader { subs_tx, ready_tx }
     }
 
@@ -73,7 +74,7 @@ impl Reader {
         }
 
         // Re-register the connection for more readings.
-        self.ready_tx.send(conn).unwrap();
+        self.ready_tx.send(ready::Cmd::Read(conn)).unwrap();
     }
 }
 
