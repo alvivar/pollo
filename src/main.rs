@@ -54,7 +54,6 @@ fn main() -> io::Result<()> {
 
     // Channels to send work to the thread pool that handles reading and
     // writing.
-    let mut work = ThreadPool::new(4);
     let (work_tx, work_rx) = channel::<Work>();
     let work_rx = Arc::new(Mutex::new(work_rx));
 
@@ -68,6 +67,8 @@ fn main() -> io::Result<()> {
 
     // A pool of threads handling reads and writes. Reading also talks with the
     // the subscription system.
+    let mut work = ThreadPool::new(4);
+
     for _ in 0..work.size() {
         let work_rx = work_rx.clone();
         let subs_tx = subs_tx.clone();
