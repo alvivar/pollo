@@ -1,9 +1,12 @@
 
-    A writer system
-    The writer system should be compatible with the thread pool, probably
-    The subs system should call the writer instead
+    When writing fails because of a subscription, it should clean up the subscription
     Websockets?
 
+
+    2021.06.28
+    x A writer system
+    x The writer system should be compatible with the thread pool, probably
+    x The subs system should call the writer instead
 
     2021.06.26
     x Compact poller functionality
