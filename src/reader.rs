@@ -89,17 +89,21 @@ fn read(conn: &mut Connection) -> io::Result<Vec<u8>> {
                 // connection or is done writing, then so are we.
                 return Err(io::Error::new(io::ErrorKind::BrokenPipe, "0 bytes read"));
             }
+
             Ok(n) => {
                 bytes_read += n;
                 if bytes_read == received.len() {
                     received.resize(received.len() + 1024, 0);
                 }
             }
+
             // Would block "errors" are the OS's way of saying that the
             // connection is not actually ready to perform this I/O operation.
             // @todo Wondering if this should be a panic instead.
             Err(ref err) if would_block(err) => break,
+
             Err(ref err) if interrupted(err) => continue,
+
             // Other errors we'll consider fatal.
             Err(err) => return Err(err),
         }
