@@ -25,7 +25,7 @@ use writer::Writer;
 
 pub enum Work {
     Read(Connection),
-    Write(Connection, String),
+    Write(Connection, String, String),
 }
 
 fn main() -> io::Result<()> {
@@ -75,16 +75,17 @@ fn main() -> io::Result<()> {
         let ready_tx = ready_tx.clone();
 
         work.submit(move || loop {
-            let subs_tx = subs_tx.clone();
+            let reader_subs_tx = subs_tx.clone();
             let reader_ready_tx = ready_tx.clone();
-            let reader = Reader::new(subs_tx, reader_ready_tx);
+            let reader = Reader::new(reader_subs_tx, reader_ready_tx);
 
+            let writer_subs_tx = subs_tx.clone();
             let writer_ready_tx = ready_tx.clone();
-            let writer = Writer::new(writer_ready_tx);
+            let writer = Writer::new(writer_subs_tx, writer_ready_tx);
 
             match work_rx.lock().unwrap().recv().unwrap() {
                 Work::Read(conn) => reader.handle(conn),
-                Work::Write(conn, msg) => writer.handle(conn, msg),
+                Work::Write(conn, key, value) => writer.handle(conn, key, value),
             }
         });
     }

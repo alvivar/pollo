@@ -36,9 +36,11 @@ pub fn parse(text: &str) -> Msg {
                     // not by a space.
                     next = 1;
                 }
+
                 1 => {
                     key.push(c);
                 }
+
                 _ => {
                     // @doubt There may be a way to push the rest of the
                     // iterator instead of moving one by one after this point.

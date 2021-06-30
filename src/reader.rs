@@ -25,7 +25,7 @@ impl Reader {
         let data = match read(&mut conn) {
             Ok(data) => data,
             Err(err) => {
-                println!("Connection #{} lost: {}", conn.id, err);
+                println!("Connection #{} broken, failed read: {}", conn.id, err);
                 return;
             }
         };

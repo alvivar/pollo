@@ -56,10 +56,11 @@ impl Subs {
 
                 Ok(Cmd::Call(key, value)) => {
                     if let Some(subs) = self.registry.get(&key) {
-                        for &id in subs {
-                            let msg = format!("{} {}", key, value);
-                            if let Some(conn) = self.write_map.lock().unwrap().remove(&id) {
-                                self.work_tx.send(Work::Write(conn, msg)).unwrap();
+                        for id in subs {
+                            if let Some(conn) = self.write_map.lock().unwrap().remove(id) {
+                                self.work_tx
+                                    .send(Work::Write(conn, key.to_owned(), value.to_owned()))
+                                    .unwrap();
                             }
                         }
                     }
