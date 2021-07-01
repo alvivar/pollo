@@ -56,8 +56,9 @@ impl Subs {
 
                 Ok(Cmd::Call(key, value)) => {
                     if let Some(subs) = self.registry.get(&key) {
+                        let mut write_map = self.write_map.lock().unwrap();
                         for id in subs {
-                            if let Some(conn) = self.write_map.lock().unwrap().remove(id) {
+                            if let Some(conn) = write_map.remove(id) {
                                 self.work_tx
                                     .send(Work::Write(conn, key.to_owned(), value.to_owned()))
                                     .unwrap();
