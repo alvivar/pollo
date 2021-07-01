@@ -83,7 +83,8 @@ fn main() -> io::Result<()> {
             let writer_ready_tx = ready_tx.clone();
             let writer = Writer::new(writer_subs_tx, writer_ready_tx);
 
-            match work_rx.lock().unwrap().recv().unwrap() {
+            let work = work_rx.lock().unwrap().recv().unwrap();
+            match work {
                 Work::Read(conn) => reader.handle(conn),
                 Work::Write(conn, key, value) => writer.handle(conn, key, value),
             }

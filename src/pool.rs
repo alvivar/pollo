@@ -70,7 +70,9 @@ impl Worker {
             let job = receiver.lock().unwrap().recv();
             match job {
                 Ok(Job::Task(f)) => f(),
+
                 Ok(Job::Stop) => break,
+
                 Err(_) => break,
             }
         });

@@ -50,7 +50,7 @@ pub fn parse(text: &str) -> Msg {
         }
     }
 
-    let op = op.trim_end().to_owned();
+    let op = op.trim().to_owned();
     let key = key.trim().to_owned();
 
     Msg { op, key, value }

@@ -1,8 +1,10 @@
 
-    writer_map should be handled by the writer, instead of taking the connections in other places like in subs
-    When writing fails because of a subscription, it should clean up the subscription
     Websockets?
 
+
+    2021.06.30
+    . writer_map should be handled by the writer, instead of taking the connections in other places like in subs?
+    x When writing fails because of a subscription, it should clean up the subscription
 
     2021.06.28
     x A writer system
