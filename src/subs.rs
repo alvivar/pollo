@@ -40,7 +40,7 @@ impl Subs {
         loop {
             match self.rx.recv() {
                 Ok(Cmd::Add(key, id)) => {
-                    let subs = self.registry.entry(key.to_owned()).or_insert_with(Vec::new);
+                    let subs = self.registry.entry(key).or_insert_with(Vec::new);
 
                     if subs.iter().any(|x| x == &id) {
                         continue;
@@ -50,7 +50,7 @@ impl Subs {
                 }
 
                 Ok(Cmd::Del(key, id)) => {
-                    let subs = self.registry.entry(key.to_owned()).or_insert_with(Vec::new);
+                    let subs = self.registry.entry(key).or_insert_with(Vec::new);
                     subs.retain(|x| x != &id);
                 }
 
@@ -67,7 +67,7 @@ impl Subs {
                     }
                 }
 
-                Err(err) => panic!("The sub channel failed: {}", err),
+                Err(err) => panic!("The subs channel failed: {}", err),
             }
         }
     }
