@@ -62,4 +62,4 @@ until that job is done. So, on super fast events (milliseconds) you can loose
 information.
 
 Like trying to write super fast twice in a row, or reading twice super fast from
-a client (unlikely for , but unscalable).
+a client.
